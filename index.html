@@ -414,38 +414,18 @@
 
     /* ── TAG CHIP SELECTOR ── */
     .chip-bar-wrap {
-      position: relative;
       display: flex;
       align-items: stretch;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      position: relative;
     }
-    .chip-bar-back {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      min-width: 34px;
-      cursor: pointer;
-      color: var(--accent);
-      font-size: 22px;
-      font-weight: 300;
-      background: linear-gradient(to right, var(--bg-secondary) 65%, transparent);
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      z-index: 3;
-      padding-left: 6px;
-      transition: opacity 0.15s;
-    }
-    .chip-bar-back.visible { display: flex; }
-    .chip-bar-back:active { opacity: 0.6; }
     .tag-selector-bar {
       flex: 1;
-      padding: 8px 12px;
+      padding: 8px 8px 8px 12px;
       display: flex; align-items: center; gap: 8px;
       overflow-x: auto;
-      scroll-snap-type: x mandatory;
       -webkit-overflow-scrolling: touch;
     }
     .tag-selector-bar::-webkit-scrollbar { display: none; }
@@ -455,26 +435,79 @@
       border: 1px solid var(--border);
       color: var(--text-secondary);
       border-radius: 16px;
-      padding: 4px 12px;
+      padding: 5px 13px;
       font-size: 12px; font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
       white-space: nowrap;
-      scroll-snap-align: start;
+      min-height: 30px;
+      display: flex; align-items: center;
     }
     .ts-chip.active {
       background: rgba(37,216,135,0.15);
       border-color: var(--accent-dim);
       color: var(--accent);
     }
-    .ts-chip:active { transform: scale(0.96); }
-    .ts-add-chip {
+    .ts-chip:active { opacity: 0.7; }
+
+    /* ▾ dropdown button — always fixed at right of bar, never scrolls */
+    .chip-picker-btn {
       flex-shrink: 0;
-      color: var(--text-muted);
-      font-size: 20px;
+      width: 44px;
+      min-width: 44px;
+      display: flex; align-items: center; justify-content: center;
       cursor: pointer;
-      padding: 0 4px;
+      color: var(--text-secondary);
+      font-size: 18px;
+      background: linear-gradient(to right, transparent, var(--bg-secondary) 40%);
+      border: none;
+      padding-right: 4px;
+      transition: color 0.15s;
+      position: relative; z-index: 2;
     }
+    .chip-picker-btn:active,
+    .chip-picker-btn.open { color: var(--accent); }
+
+    /* Tag picker panel — slides down from chip bar */
+    .tag-picker-overlay {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      background: var(--bg-secondary);
+      border-bottom: 2px solid var(--border);
+      padding: 0 12px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+      z-index: 50;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s cubic-bezier(0.4,0,0.2,1),
+                  padding 0.25s cubic-bezier(0.4,0,0.2,1);
+    }
+    .tag-picker-overlay.open {
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 10px 12px 14px;
+    }
+    .tag-picker-overlay::-webkit-scrollbar { width: 3px; }
+    .tag-picker-overlay::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .tp-chip {
+      flex-shrink: 0;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 16px;
+      padding: 4px 11px;
+      font-size: 12px; font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s;
+    }
+    .tp-chip.active {
+      background: rgba(37,216,135,0.15);
+      border-color: var(--accent-dim);
+      color: var(--accent);
+    }
+    .tp-chip:active { opacity: 0.7; }
 
     /* ── MODALS ── */
     .modal-overlay {
@@ -803,9 +836,15 @@
     </div>
     <!-- Tag / Subtag filter chips -->
     <div class="chip-bar-wrap" id="tag-filter-bar-wrap" style="display:none">
-      <div class="chip-bar-back" id="chip-bar-back" onclick="resetChipFilter()">‹</div>
       <div class="tag-selector-bar" id="tag-filter-bar"></div>
+      <button class="chip-picker-btn" id="chip-picker-btn" onclick="toggleTagPicker()" title="Tutti i tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <!-- Picker panel — slides down below the bar -->
+      <div class="tag-picker-overlay" id="tag-picker-overlay"></div>
     </div>
+    <!-- Backdrop to close picker when tapping outside -->
+    <div id="tag-picker-backdrop" style="display:none;position:fixed;inset:0;z-index:49;" onclick="closeTagPicker()"></div>
     <!-- Chat search -->
     <div class="search-bar" id="chat-search-bar" style="display:none">
       <div class="search-input-wrap">
@@ -871,7 +910,7 @@
             <div class="settings-item-icon" style="background:rgba(255,255,255,0.05)">ℹ️</div>
             <div class="settings-item-info">
               <div class="settings-item-title">Info</div>
-              <div class="settings-item-sub">MoMeLoSegno v1.6.2</div>
+              <div class="settings-item-sub">MoMeLoSegno v1.6.4</div>
             </div>
           </div>
           <div class="settings-item" onclick="confirmClear()">
@@ -959,10 +998,10 @@
     <div class="modal-title">MindFlow</div>
     <p style="color:var(--text-secondary);font-size:14px;line-height:1.7">
       La tua app personale per catturare pensieri e idee.<br><br>
-      <strong style="color:var(--accent)">Versione 1.6.2</strong> — MoMeLoSegno — Offline-first PWA<br>
+      <strong style="color:var(--accent)">Versione 1.6.4</strong> — MoMeLoSegno — Offline-first PWA<br>
       Tutti i dati sono salvati localmente sul tuo dispositivo.<br><br>
       <span style="font-size:12px;color:var(--text-muted)">
-        Fix v1.6.2: stesso sistema di 1.6.1 (input-area position:fixed, funzionante su Android).
+        Fix v1.6.4: chip pannello senza emoji, stile identico a modifica messaggio, selezione scrolla barra.
         Aggiunto overflow:hidden su .screen per stabilità layout.
       </span>
     </p>
@@ -1148,7 +1187,17 @@ function goBack() {
     // Restore chip bar with the previous filter active
     const filterBarWrap = document.getElementById('tag-filter-bar-wrap');
     filterBarWrap.style.display = 'flex';
-    renderTagFilterChips(); // rebuilds chips; activeFilter is already set
+    renderTagFilterChips(); // rebuilds chips; activeFilter is already restored above
+
+    // Scroll the restored active chip into view (instant, no animation)
+    requestAnimationFrame(() => {
+      const bar = document.getElementById('tag-filter-bar');
+      const activeChip = bar ? bar.querySelector('.ts-chip.active') : null;
+      if (bar && activeChip) {
+        const chipOffset = activeChip.offsetLeft - bar.offsetLeft;
+        bar.scrollTo({ left: Math.max(0, chipOffset - 12), behavior: 'instant' });
+      }
+    });
 
     document.getElementById('chat-ctx-rename').style.display = 'none';
     document.getElementById('chat-ctx-delete-tag').style.display = 'none';
@@ -1579,82 +1628,144 @@ function renderSubtagFilterChips(subtags) {
   setupChipBarScroll();
 }
 
-// ── CHIP BEHAVIOR CONTRACT (v1.6) ─────────────────────────────────────────
-// First tap  → set as active filter, stay in current view, scroll chip into view
-// Second tap + main tag → openTagChat() (in-place, no screen transition)
-// Second tap + Tutte / Senza Tag / subtag → do nothing
+// ── CHIP BEHAVIOR CONTRACT (v1.6.3) ──────────────────────────────────────
+// Tap chip NOT active  → becomes active filter, no navigation
+// Tap chip ALREADY active + main tag → openTagChat() in-place
+// Tap chip ALREADY active + Tutte / Senza Tag / subtag → do nothing
+// ▾ button → opens tag picker panel (grid of all tags)
 function onChipClick(el, value, isSubtag) {
+  closeTagPicker(); // close picker panel if open
   const isAlreadyActive = el.classList.contains('active');
 
   if (isAlreadyActive) {
-    // Second tap
     if (!isSubtag && value && value !== '__untagged__') {
-      // Main tag already selected → enter its chat in-place
-      openTagChat(value);
+      openTagChat(value); // second tap on main tag → enter chat
     }
-    // Tutte, Senza Tag, subtags → do nothing on second tap
-    return;
+    return; // Tutte / Senza Tag / subtag → do nothing on second tap
   }
 
-  // First tap → set as filter, stay in current view
-  document.querySelectorAll('#tag-filter-bar .ts-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  activeFilter = value;
-  // Scroll selected chip into view inside the bar ONLY (avoid page-level scroll bug)
-  const bar = document.getElementById('tag-filter-bar');
-  if (bar) {
-    const chipOffset = el.offsetLeft - bar.offsetLeft;
-    bar.scrollTo({ left: chipOffset, behavior: 'smooth' });
+  // First tap → set as filter (use setActiveFilter so bar always scrolls to chip)
+  setActiveFilter(value, isSubtag);
+}
+
+// ── TAG PICKER PANEL ──────────────────────────────────────────────────────
+function toggleTagPicker() {
+  const overlay = document.getElementById('tag-picker-overlay');
+  if (!overlay) return;
+  if (overlay.classList.contains('open')) {
+    closeTagPicker();
+  } else {
+    openTagPicker();
   }
+}
+
+function openTagPicker() {
+  const overlay  = document.getElementById('tag-picker-overlay');
+  const backdrop = document.getElementById('tag-picker-backdrop');
+  const btn      = document.getElementById('chip-picker-btn');
+  if (!overlay) return;
+  renderTagPickerPanel(overlay);
+  overlay.classList.add('open');
+  if (backdrop) backdrop.style.display = 'block';
+  if (btn) btn.classList.add('open');
+}
+
+function closeTagPicker() {
+  const overlay  = document.getElementById('tag-picker-overlay');
+  const backdrop = document.getElementById('tag-picker-backdrop');
+  const btn      = document.getElementById('chip-picker-btn');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  if (backdrop) backdrop.style.display = 'none';
+  if (btn) btn.classList.remove('open');
+}
+
+// Build the grid of chips inside the picker panel.
+// In generic chat: Tutte + Senza Tag + all main tags (no emojis, clean text only).
+// In tag chat: Tutte + all subtags of the current tag.
+function renderTagPickerPanel(overlay) {
+  overlay.innerHTML = '';
+
+  const isTagChat = !chatContext.isGeneric;
+
+  if (!isTagChat) {
+    // Generic chat picker: Tutte, Senza Tag, + all main tags — plain text, no emojis
+    const items = [
+      { label: 'Tutte',     value: '' },
+      { label: 'Senza Tag', value: '__untagged__' },
+      ...db.tags.map(t => ({ label: t, value: t }))
+    ];
+    items.forEach(item => {
+      const c = document.createElement('div');
+      c.className = 'tp-chip' + (activeFilter === item.value ? ' active' : '');
+      c.textContent = item.label;
+      c.onclick = () => {
+        closeTagPicker();
+        setActiveFilter(item.value, false);
+      };
+      overlay.appendChild(c);
+    });
+  } else {
+    // Tag chat picker: Tutte + subtags — plain text
+    const subtags = [...new Set(
+      db.notes.filter(n => n.tag === chatContext.tag && n.subtag).map(n => n.subtag)
+    )];
+    const items = [
+      { label: 'Tutte', value: '' },
+      ...subtags.map(s => ({ label: s, value: s }))
+    ];
+    items.forEach(item => {
+      const c = document.createElement('div');
+      c.className = 'tp-chip' + (activeFilter === item.value ? ' active' : '');
+      c.textContent = item.label;
+      c.onclick = () => {
+        closeTagPicker();
+        setActiveFilter(item.value, true);
+      };
+      overlay.appendChild(c);
+    });
+  }
+}
+
+// Central function: sets activeFilter, updates bar chip highlight,
+// scrolls bar so the active chip is visible at the left, then re-renders chat.
+function setActiveFilter(value, isSubtag) {
+  activeFilter = value;
+
+  // Update highlight on bar chips
+  const barChips = document.querySelectorAll('#tag-filter-bar .ts-chip');
+  barChips.forEach(chip => chip.classList.remove('active'));
+
+  // Find the matching bar chip and highlight + scroll into view
+  let targetChip = null;
+  barChips.forEach(chip => {
+    const text = chip.textContent.trim();
+    const match = value === '' ? text === 'Tutte'
+      : value === '__untagged__' ? text === 'Senza Tag'
+      : text === getTagEmoji(value) + ' ' + value || text === value;
+    if (match) {
+      chip.classList.add('active');
+      targetChip = chip;
+    }
+  });
+
+  // Scroll bar so active chip is visible at the left edge
+  const bar = document.getElementById('tag-filter-bar');
+  if (bar && targetChip) {
+    const chipLeft = targetChip.offsetLeft - bar.offsetLeft;
+    bar.scrollTo({ left: Math.max(0, chipLeft - 12), behavior: 'smooth' });
+  }
+
   renderChat();
 }
 
-function setupChipBarScroll() {
-  const bar  = document.getElementById('tag-filter-bar');
-  const back = document.getElementById('chip-bar-back');
-  if (!bar || !back) return;
-
-  bar.removeEventListener('scroll', bar._scrollHandler);
-  bar._scrollHandler = () => {
-    back.classList.toggle('visible', bar.scrollLeft > 24);
-    // Auto-activate the chip that snapped into view (debounced)
-    clearTimeout(bar._snapTimer);
-    bar._snapTimer = setTimeout(() => {
-      activateSnappedChip(bar);
-    }, 120);
-  };
-  bar.addEventListener('scroll', bar._scrollHandler);
-  back.classList.toggle('visible', bar.scrollLeft > 24);
-}
-
-// Find the chip closest to the left edge of the bar after a scroll-snap,
-// and activate it as the current filter (if not already active).
-function activateSnappedChip(bar) {
-  const chips = bar.querySelectorAll('.ts-chip');
-  if (!chips.length) return;
-  const barRect = bar.getBoundingClientRect();
-  let closest = null;
-  let minDist = Infinity;
-  chips.forEach(chip => {
-    const dist = Math.abs(chip.getBoundingClientRect().left - barRect.left);
-    if (dist < minDist) { minDist = dist; closest = chip; }
-  });
-  if (closest && !closest.classList.contains('active')) {
-    closest.click();
-  }
-}
-
+// Legacy stub — kept so nothing breaks if called elsewhere
+function setupChipBarScroll() {}
 function resetChipFilter() {
-  const bar  = document.getElementById('tag-filter-bar');
-  const back = document.getElementById('chip-bar-back');
-  if (bar) { bar.scrollLeft = 0; }
-  if (back) { back.classList.remove('visible'); }
-  // Select "Tutte" and reset filter
-  const allChip = bar ? bar.querySelector('.ts-chip') : null;
-  if (allChip) {
-    document.querySelectorAll('#tag-filter-bar .ts-chip').forEach(c => c.classList.remove('active'));
-    allChip.classList.add('active');
-  }
+  closeTagPicker();
+  document.querySelectorAll('#tag-filter-bar .ts-chip').forEach(c => c.classList.remove('active'));
+  const allChip = document.querySelector('#tag-filter-bar .ts-chip');
+  if (allChip) allChip.classList.add('active');
   activeFilter = '';
   renderChat();
 }
