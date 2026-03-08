@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0e1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -36,8 +36,6 @@
 
     html, body {
       height: 100%; width: 100%;
-      /* dvh = dynamic viewport height: shrinks when mobile browser chrome is visible */
-      height: 100dvh;
       overflow: hidden;
       background: var(--bg-primary);
       color: var(--text-primary);
@@ -49,10 +47,9 @@
 
     /* ── LAYOUT ── */
     #app {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
       display: flex; flex-direction: column;
-      height: 100%; width: 100%;
-      height: 100dvh;
-      position: relative;
       overflow: hidden;
     }
 
@@ -2448,26 +2445,7 @@ function registerSW() {
 // INIT
 // ═══════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════
-// MOBILE VIEWPORT FIX (Android / Oppo / Chrome)
-// visualViewport gives the true visible area, excluding
-// browser chrome AND the on-screen keyboard.
-// ═══════════════════════════════════════════════
-
-function applyViewportHeight() {
-  const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-  document.getElementById('app').style.height = h + 'px';
-}
-
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', applyViewportHeight);
-  window.visualViewport.addEventListener('scroll', applyViewportHeight);
-}
-window.addEventListener('resize', applyViewportHeight);
-applyViewportHeight();
-
 document.addEventListener('DOMContentLoaded', () => {
-  applyViewportHeight(); // re-apply once DOM is fully ready
   injectManifest();
   registerSW();
   ensureSpecialTags();
