@@ -210,7 +210,6 @@
     /* ── CHAT SCREEN ── */
     #screen-chat {
       background-color: #111b21;
-      min-height: 100vh;
     }
     #screen-chat .messages-container {
       flex: 1; overflow-y: auto;
@@ -2449,7 +2448,26 @@ function registerSW() {
 // INIT
 // ═══════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════
+// MOBILE VIEWPORT FIX (Android / Oppo / Chrome)
+// visualViewport gives the true visible area, excluding
+// browser chrome AND the on-screen keyboard.
+// ═══════════════════════════════════════════════
+
+function applyViewportHeight() {
+  const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+  document.getElementById('app').style.height = h + 'px';
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', applyViewportHeight);
+  window.visualViewport.addEventListener('scroll', applyViewportHeight);
+}
+window.addEventListener('resize', applyViewportHeight);
+applyViewportHeight();
+
 document.addEventListener('DOMContentLoaded', () => {
+  applyViewportHeight(); // re-apply once DOM is fully ready
   injectManifest();
   registerSW();
   ensureSpecialTags();
