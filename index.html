@@ -449,6 +449,25 @@
       color: var(--accent);
     }
     .ts-chip:active { opacity: 0.7; }
+    /* back chip — navigation only, never .active, visually neutral */
+    .ts-chip.back {
+      color: var(--text-muted);
+      border-color: var(--border);
+      background: var(--bg-tertiary);
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    /* bubble tag chip — clickable in generic chat */
+    .bubble-tag-chip { cursor: pointer; }
+    .bubble-tag-chip:hover { background: rgba(37,216,135,0.22); }
+    /* jump-to-note flash */
+    @keyframes noteFlash {
+      0%   { box-shadow: inset 0 0 0 2px rgba(37,216,135,0.7); }
+      100% { box-shadow: none; }
+    }
+    .bubble-row.note-flash .bubble { animation: noteFlash 1.1s ease-out; }
 
     /* ▾ dropdown button — always fixed at right of bar, never scrolls */
     .chip-picker-btn {
@@ -943,13 +962,13 @@
 <div class="modal-overlay" id="modal-new-tag" onclick="closeModalOutside(event,'modal-new-tag')">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nuovo tag</div>
+    <div class="modal-title" id="new-tag-modal-title">Nuovo tag</div>
     <div class="form-group">
-      <label class="form-label">Nome tag</label>
+      <label class="form-label" id="new-tag-modal-label">Nome tag</label>
       <input class="form-input" id="new-tag-input" type="text" placeholder="es. Lavoro, Idee, Salute…"
         onkeydown="if(event.key==='Enter')createTag()">
     </div>
-    <button class="btn btn-primary" onclick="createTag()">Crea tag</button>
+    <button class="btn btn-primary" onclick="createTag()">Crea</button>
     <button class="btn btn-secondary" onclick="closeModal('modal-new-tag')">Annulla</button>
   </div>
 </div>
@@ -976,18 +995,36 @@
   </div>
 </div>
 
-<!-- Edit Tag -->
+<!-- Edit Tag / Subtag -->
 <div class="modal-overlay" id="modal-edit-tag" onclick="closeModalOutside(event,'modal-edit-tag')">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">Modifica tag</div>
+    <div class="modal-title" id="edit-tag-modal-title">Modifica tag</div>
     <div class="form-group">
-      <label class="form-label">Nome</label>
+      <label class="form-label" id="edit-tag-modal-label">Nome</label>
       <input class="form-input" id="edit-tag-input" type="text">
     </div>
     <button class="btn btn-primary" onclick="saveTagEdit()">Salva</button>
-    <button class="btn btn-danger" onclick="deleteTagConfirm()">Elimina tag</button>
+    <button class="btn btn-danger" id="edit-tag-delete-btn" onclick="deleteTagFromEditModal()">Elimina tag</button>
     <button class="btn btn-secondary" onclick="closeModal('modal-edit-tag')">Annulla</button>
+  </div>
+</div>
+
+<!-- Delete Tag (rich) -->
+<div class="modal-overlay" id="modal-delete-tag" onclick="closeModalOutside(event,'modal-delete-tag')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="delete-tag-modal-title">Elimina tag</div>
+    <p id="delete-tag-modal-desc" style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;line-height:1.6"></p>
+    <!-- Reassign chip panel — hidden until requested -->
+    <div id="delete-tag-reassign" style="display:none;margin-bottom:14px">
+      <div class="form-label" style="margin-bottom:8px">Scegli il tag a cui riassegnare:</div>
+      <div id="delete-tag-reassign-chips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+    <button class="btn btn-danger"     onclick="executeDeleteTag('eliminate')">🗑️ Elimina anche le note</button>
+    <button class="btn btn-secondary"  onclick="executeDeleteTag('keep')">📤 Lascia le note senza tag</button>
+    <button class="btn btn-secondary"  id="delete-tag-btn-reassign" onclick="toggleReassignChips()">🔄 Riassegna ad altro tag…</button>
+    <button class="btn btn-secondary"  onclick="closeModal('modal-delete-tag')">Annulla</button>
   </div>
 </div>
 
@@ -998,11 +1035,12 @@
     <div class="modal-title">MindFlow</div>
     <p style="color:var(--text-secondary);font-size:14px;line-height:1.7">
       La tua app personale per catturare pensieri e idee.<br><br>
-      <strong style="color:var(--accent)">Versione 1.6.4</strong> — MoMeLoSegno — Offline-first PWA<br>
+      <strong style="color:var(--accent)">Versione 1.6.5</strong> — MoMeLoSegno — Offline-first PWA<br>
       Tutti i dati sono salvati localmente sul tuo dispositivo.<br><br>
       <span style="font-size:12px;color:var(--text-muted)">
-        Fix v1.6.4: chip pannello senza emoji, stile identico a modifica messaggio, selezione scrolla barra.
-        Aggiunto overflow:hidden su .screen per stabilità layout.
+        Fix v1.6.5: scroll freeze chip bar, chip ‹ back in tag chat, creazione subtag contestuale,
+        inheritance subtag, persistenza giorno, tap tag-chip per saltare al messaggio, "Vedi contesto",
+        eliminazione tag con opzioni (elimina note / lascia / riassegna).
       </span>
     </p>
     <br>
@@ -1024,6 +1062,7 @@
 
 <!-- Context menu -->
 <div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" id="ctx-context" style="display:none">🔍 Vedi contesto</div>
   <div class="ctx-item" id="ctx-assign">🏷️ Assegna tag</div>
   <div class="ctx-item" id="ctx-edit">✏️ Modifica</div>
   <div class="ctx-item danger" id="ctx-delete">🗑️ Elimina</div>
@@ -1031,7 +1070,7 @@
 
 <!-- Chat menu -->
 <div class="ctx-menu" id="chat-ctx-menu">
-  <div class="ctx-item" onclick="closeChatMenu();openModal('modal-new-tag')">🏷️ Nuovo tag</div>
+  <div class="ctx-item" id="chat-ctx-new" onclick="openNewTagOrSubtag()">🏷️ Nuovo tag</div>
   <div class="ctx-item" id="chat-ctx-rename" onclick="closeChatMenu();openEditTag()">✏️ Rinomina tag</div>
   <div class="ctx-item danger" id="chat-ctx-delete-tag" onclick="closeChatMenu();deleteTagConfirm()">🗑️ Elimina tag</div>
 </div>
@@ -1133,6 +1172,9 @@ let chatOrigin = null;   // saved context when entering tag chat via chip second
 let activeFilter = '';
 let editingNoteId = null;
 let editingTagName = null;
+let editingSubtagMode = false;  // v1.6.5 — true when edit modal is in subtag mode
+let _deleteTagTarget = null;    // v1.6.5 — tag being deleted in rich modal
+let _reassignTarget  = null;    // v1.6.5 — tag to reassign to
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
@@ -1189,20 +1231,23 @@ function goBack() {
     filterBarWrap.style.display = 'flex';
     renderTagFilterChips(); // rebuilds chips; activeFilter is already restored above
 
-    // Scroll the restored active chip into view (instant, no animation)
-    requestAnimationFrame(() => {
-      const bar = document.getElementById('tag-filter-bar');
-      const activeChip = bar ? bar.querySelector('.ts-chip.active') : null;
-      if (bar && activeChip) {
-        const chipOffset = activeChip.offsetLeft - bar.offsetLeft;
-        bar.scrollTo({ left: Math.max(0, chipOffset - 12), behavior: 'instant' });
-      }
-    });
-
     document.getElementById('chat-ctx-rename').style.display = 'none';
     document.getElementById('chat-ctx-delete-tag').style.display = 'none';
 
     renderChat();
+
+    // Dopo il paint: chip snap (v1.6.4 style) + ripristino giorno (v1.6.5)
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const bar = document.getElementById('tag-filter-bar');
+        const activeChip = bar ? bar.querySelector('.ts-chip.active') : null;
+        if (bar && activeChip) {
+          const chipOffset = activeChip.offsetLeft - bar.offsetLeft;
+          bar.scrollTo({ left: Math.max(0, chipOffset - 12), behavior: 'instant' });
+        }
+        if (origin.visibleDay) restoreVisibleDay(origin.visibleDay);
+      })
+    );
     return;
   }
 
@@ -1293,11 +1338,12 @@ function openChat(tagName, specificTag) {
 // Called when user second-taps a main-tag chip inside generic chat.
 // Changes the chat context without any sliding animation.
 function openTagChat(tag) {
-  // Save current context so goBack() can restore it
+  // Save current context so goBack() / < chip can restore it
   chatOrigin = {
     tag: chatContext.tag,
     isGeneric: chatContext.isGeneric,
-    filter: activeFilter
+    filter: activeFilter,
+    visibleDay: saveVisibleDay()   // v1.6.5 — persist day position
   };
 
   chatContext = { tag, isGeneric: false };
@@ -1541,12 +1587,17 @@ function buildBubble(note) {
 
   const time = new Date(note.createdAt).toLocaleTimeString('it', {hour:'2-digit', minute:'2-digit'});
 
-  let inner = '';
-  // Tag chip (generic chat)
+  // ── Tag chip: clickable in generic chat (v1.6.5) ──────────────────────────
   if (chatContext.isGeneric && note.tag) {
-    inner += `<div class="bubble-tag-chip">🏷️ ${escHtml(note.tag)}${note.subtag ? ' › '+escHtml(note.subtag) : ''}</div>`;
+    const tagChip = document.createElement('div');
+    tagChip.className = 'bubble-tag-chip';
+    tagChip.innerHTML = `🏷️ ${escHtml(note.tag)}${note.subtag ? ' › ' + escHtml(note.subtag) : ''}`;
+    tagChip.title = 'Vai alla chat ' + note.tag;
+    tagChip.addEventListener('click', e => { e.stopPropagation(); openTagChatAtNote(note.tag, note.id); });
+    bubble.appendChild(tagChip);
   }
 
+  let inner = '';
   if (note.type === 'audio') {
     const bars = Array.from({length: 20}, (_, i) => {
       const h = 6 + Math.sin(i * 0.8) * 6 + Math.random() * 8;
@@ -1561,9 +1612,12 @@ function buildBubble(note) {
   } else {
     inner += `<div>${escHtml(note.content)}</div>`;
   }
-
   inner += `<div class="bubble-time">${time}</div>`;
-  bubble.innerHTML = inner;
+
+  // Append content after the (possibly already added) tag chip
+  const tmp = document.createElement('div');
+  tmp.innerHTML = inner;
+  while (tmp.firstChild) bubble.appendChild(tmp.firstChild);
 
   // Long-press to context menu
   let pressTimer;
@@ -1611,17 +1665,27 @@ function renderSubtagFilterChips(subtags) {
   const bar = document.getElementById('tag-filter-bar');
   bar.innerHTML = '';
 
+  // ── Back chip: navigation only, never .active ─────────────────────────────
+  const back = document.createElement('div');
+  back.id = 'chip-bar-back';
+  back.className = 'ts-chip back';
+  back.textContent = '‹';
+  back.title = 'Torna alla chat generica';
+  back.onclick = restoreGenericFromTag;
+  bar.appendChild(back);
+
+  // ── Tutte ─────────────────────────────────────────────────────────────────
   const allChip = document.createElement('div');
   allChip.className = 'ts-chip' + (activeFilter === '' ? ' active' : '');
   allChip.textContent = 'Tutte';
-  allChip.onclick = () => onChipClick(allChip, '', true); // isSubtag — never navigates
+  allChip.onclick = () => onChipClick(allChip, '', true);
   bar.appendChild(allChip);
 
   subtags.forEach(subtag => {
     const c = document.createElement('div');
     c.className = 'ts-chip' + (activeFilter === subtag ? ' active' : '');
     c.textContent = subtag;
-    c.onclick = () => onChipClick(c, subtag, true); // subtags — never navigate
+    c.onclick = () => onChipClick(c, subtag, true);
     bar.appendChild(c);
   });
 
@@ -1706,10 +1770,8 @@ function renderTagPickerPanel(overlay) {
       overlay.appendChild(c);
     });
   } else {
-    // Tag chat picker: Tutte + subtags — plain text
-    const subtags = [...new Set(
-      db.notes.filter(n => n.tag === chatContext.tag && n.subtag).map(n => n.subtag)
-    )];
+    // Tag chat picker: Tutte + subtags — uses getSubtagsForTag so explicit subtags appear immediately
+    const subtags = getSubtagsForTag(chatContext.tag);
     const items = [
       { label: 'Tutte', value: '' },
       ...subtags.map(s => ({ label: s, value: s }))
@@ -1732,8 +1794,8 @@ function renderTagPickerPanel(overlay) {
 function setActiveFilter(value, isSubtag) {
   activeFilter = value;
 
-  // Update highlight on bar chips
-  const barChips = document.querySelectorAll('#tag-filter-bar .ts-chip');
+  // Update highlight on bar chips — skip the back chip
+  const barChips = document.querySelectorAll('#tag-filter-bar .ts-chip:not(.back)');
   barChips.forEach(chip => chip.classList.remove('active'));
 
   // Find the matching bar chip and highlight + scroll into view
@@ -1749,11 +1811,17 @@ function setActiveFilter(value, isSubtag) {
     }
   });
 
-  // Scroll bar so active chip is visible at the left edge
+  // Scroll bar so active chip is at the left edge — clamped to avoid freeze
   const bar = document.getElementById('tag-filter-bar');
   if (bar && targetChip) {
     const chipLeft = targetChip.offsetLeft - bar.offsetLeft;
-    bar.scrollTo({ left: Math.max(0, chipLeft - 12), behavior: 'smooth' });
+    const raw    = Math.max(0, chipLeft - 12);
+    const target = Math.max(0, Math.min(raw, bar.scrollWidth - bar.clientWidth));
+    if (Math.abs(bar.scrollLeft - target) < 2) {
+      bar.scrollLeft = target;
+    } else {
+      bar.scrollTo({ left: target, behavior: 'smooth' });
+    }
   }
 
   renderChat();
@@ -1825,13 +1893,23 @@ function sendText() {
 
   let tag;
   if (chatContext.isGeneric) {
-    // Inherit active filter as tag (but not when filter is Tutte or Senza Tag)
     tag = (activeFilter && activeFilter !== '__untagged__') ? activeFilter : '';
   } else {
     tag = chatContext.tag || '';
   }
 
-  const note = addNote(text, tag);
+  // ── Subtag inheritance (v1.6.5) ──────────────────────────────────────────
+  let subtag = '';
+  if (
+    chatContext.tag &&
+    activeFilter &&
+    activeFilter !== '__untagged__' &&
+    activeFilter.toLowerCase() !== 'tutte'
+  ) {
+    subtag = activeFilter;
+  }
+
+  const note = addNote(text, tag, subtag);
   input.value = '';
   input.style.height = '';
   appendBubble(note);
@@ -1957,9 +2035,18 @@ function showNoteCtxMenu(e, note) {
   menu.classList.add('open');
 
   const x = Math.min(e.clientX, window.innerWidth - 200);
-  const y = Math.min(e.clientY, window.innerHeight - 140);
+  const y = Math.min(e.clientY, window.innerHeight - 160);
   menu.style.left = x + 'px';
   menu.style.top = y + 'px';
+
+  // "Vedi contesto" — only in tag chat (v1.6.5)
+  const ctxCtx = document.getElementById('ctx-context');
+  if (!chatContext.isGeneric && chatContext.tag) {
+    ctxCtx.style.display = '';
+    ctxCtx.onclick = () => { closeCtxMenu(); openGenericAtNote(note.id); };
+  } else {
+    ctxCtx.style.display = 'none';
+  }
 
   document.getElementById('ctx-assign').onclick = () => { closeCtxMenu(); openEditNote(note, 'tag'); };
   document.getElementById('ctx-edit').onclick   = () => { closeCtxMenu(); openEditNote(note); };
@@ -2045,8 +2132,27 @@ function saveNoteEdit() {
 
 function createTag() {
   const input = document.getElementById('new-tag-input');
-  const name = input.value.trim();
+  const name  = input.value.trim();
   if (!name) { showToast('Inserisci un nome'); return; }
+
+  // ── In tag chat → create SUBTAG ───────────────────────────────────────────
+  if (!chatContext.isGeneric && chatContext.tag) {
+    if (!db.tagSubtags) db.tagSubtags = {};
+    if (!db.tagSubtags[chatContext.tag]) db.tagSubtags[chatContext.tag] = [];
+    if (getSubtagsForTag(chatContext.tag).includes(name)) {
+      showToast('Subtag già esistente'); return;
+    }
+    db.tagSubtags[chatContext.tag].push(name);
+    saveData(db);
+    input.value = '';
+    closeModal('modal-new-tag');
+    updateSubCount();
+    renderSubtagFilterChips(getSubtagsForTag(chatContext.tag));  // refresh chips immediately
+    showToast('Subtag "' + name + '" creato');
+    return;
+  }
+
+  // ── In generic chat → create TAG ─────────────────────────────────────────
   if (db.tags.includes(name)) { showToast('Tag già esistente'); return; }
   db.tags.push(name);
   saveData(db);
@@ -2054,6 +2160,7 @@ function createTag() {
   closeModal('modal-new-tag');
   renderHome();
   renderSettingsTags();
+  renderTagFilterChips();   // refresh chips immediately (v1.6.5)
   showToast('Tag "' + name + '" creato');
 }
 
@@ -2061,38 +2168,91 @@ function openEditTag(tagName) {
   const tag = tagName || editingTagName;
   if (!tag || tag === 'PROMEMORIA') { showToast('Questo tag non è modificabile'); return; }
   editingTagName = tag;
+  editingSubtagMode = false;
+  const tEl = document.getElementById('edit-tag-modal-title');
+  const lEl = document.getElementById('edit-tag-modal-label');
+  const dEl = document.getElementById('edit-tag-delete-btn');
+  if (tEl)  tEl.textContent  = 'Modifica tag';
+  if (lEl)  lEl.textContent  = 'Nome';
+  if (dEl)  dEl.textContent  = 'Elimina tag';
   document.getElementById('edit-tag-input').value = tag;
+  document.getElementById('edit-tag-input').dataset.subtag = '';
   openModal('modal-edit-tag');
 }
 
 function saveTagEdit() {
   const newName = document.getElementById('edit-tag-input').value.trim();
   if (!newName) { showToast('Nome non valido'); return; }
+
+  // ── Subtag rename mode (v1.6.5) ───────────────────────────────────────────
+  if (editingSubtagMode) {
+    const tag     = chatContext.tag;
+    const oldName = document.getElementById('edit-tag-input').dataset.subtag;
+    if (!tag || !oldName) return;
+    if (db.tagSubtags && db.tagSubtags[tag]) {
+      const idx = db.tagSubtags[tag].indexOf(oldName);
+      if (idx >= 0) db.tagSubtags[tag][idx] = newName;
+    }
+    db.notes.forEach(n => { if (n.tag === tag && n.subtag === oldName) n.subtag = newName; });
+    saveData(db);
+    if (activeFilter === oldName) activeFilter = newName;
+    editingSubtagMode = false;
+    closeModal('modal-edit-tag');
+    renderSubtagFilterChips(getSubtagsForTag(tag));
+    renderChat();
+    showToast('Subtag rinominato');
+    return;
+  }
+
+  // ── Tag rename ────────────────────────────────────────────────────────────
   if (!editingTagName) return;
   const idx = db.tags.indexOf(editingTagName);
   if (idx < 0) return;
   db.tags[idx] = newName;
-  // Update notes
   db.notes.forEach(n => { if (n.tag === editingTagName) n.tag = newName; });
+  // Rename in tagSubtags
+  if (db.tagSubtags && db.tagSubtags[editingTagName]) {
+    db.tagSubtags[newName] = db.tagSubtags[editingTagName];
+    delete db.tagSubtags[editingTagName];
+  }
   saveData(db);
   closeModal('modal-edit-tag');
   renderHome();
   renderSettingsTags();
+  if (chatContext.isGeneric) renderTagFilterChips();
   showToast('Tag rinominato');
 }
 
-function deleteTagConfirm() {
-  if (!editingTagName) return;
-  if (confirm(`Elimina tag "${editingTagName}"? Le note rimarranno senza tag.`)) {
-    db.tags = db.tags.filter(t => t !== editingTagName);
-    db.notes.forEach(n => { if (n.tag === editingTagName) { n.tag = ''; n.subtag = ''; } });
+// Called by "Elimina" button inside modal-edit-tag
+function deleteTagFromEditModal() {
+  if (editingSubtagMode) {
+    // Delete subtag directly
+    const tag    = chatContext.tag;
+    const subtag = document.getElementById('edit-tag-input').dataset.subtag;
+    if (!tag || !subtag) return;
+    if (!confirm(`Elimina subtag "${subtag}"? Le note rimarranno senza subtag.`)) return;
+    if (db.tagSubtags && db.tagSubtags[tag]) {
+      db.tagSubtags[tag] = db.tagSubtags[tag].filter(s => s !== subtag);
+    }
+    db.notes.forEach(n => { if (n.tag === tag && n.subtag === subtag) n.subtag = ''; });
     saveData(db);
+    if (activeFilter === subtag) activeFilter = '';
+    editingSubtagMode = false;
     closeModal('modal-edit-tag');
-    closeModal('modal-edit-tag');
-    renderHome();
-    renderSettingsTags();
-    showToast('Tag eliminato');
+    updateSubCount();
+    renderSubtagFilterChips(getSubtagsForTag(tag));
+    renderChat();
+    showToast('Subtag eliminato');
+    return;
   }
+  // Tag delete → open rich modal
+  closeModal('modal-edit-tag');
+  openDeleteTagModal(editingTagName);
+}
+
+// Called from chat ⋯ menu or home context menu
+function deleteTagConfirm() {
+  openDeleteTagModal(editingTagName);
 }
 
 function openTagContextMenu(e, tag) {
@@ -2113,6 +2273,8 @@ function openTagContextMenu(e, tag) {
 }
 
 function resetCtxMenu() {
+  const ctxCtx = document.getElementById('ctx-context');
+  if (ctxCtx) ctxCtx.style.display = 'none';
   document.getElementById('ctx-assign').textContent = '🏷️ Assegna tag';
   document.getElementById('ctx-edit').style.display = '';
   document.getElementById('ctx-delete').textContent = '🗑️ Elimina';
@@ -2145,15 +2307,329 @@ function renderSettingsTags() {
 }
 
 // ═══════════════════════════════════════════════
+// v1.6.5 — NUOVE FUNZIONI
+// ═══════════════════════════════════════════════
+
+// ── Subtag list: merge db.tagSubtags + subtag inferiti dalle note ────────────
+function getSubtagsForTag(tag) {
+  const fromNotes = db.notes.filter(n => n.tag === tag && n.subtag).map(n => n.subtag);
+  const fromDb    = (db.tagSubtags && db.tagSubtags[tag]) ? db.tagSubtags[tag] : [];
+  return [...new Set([...fromDb, ...fromNotes])];
+}
+
+// ── Salva il giorno visibile in cima al container ────────────────────────────
+function saveVisibleDay() {
+  const container = document.getElementById('messages-container');
+  if (!container) return null;
+  const seps = Array.from(container.querySelectorAll('.day-sep'));
+  const top  = container.getBoundingClientRect().top;
+  for (const s of seps) {
+    if (s.getBoundingClientRect().top >= top - 4) return s.textContent.trim();
+  }
+  return null;
+}
+
+// ── Scrolla al separatore giorno (chiamare dentro requestAnimationFrame) ──────
+function restoreVisibleDay(day) {
+  if (!day) return;
+  const container = document.getElementById('messages-container');
+  if (!container) return;
+  const target = Array.from(container.querySelectorAll('.day-sep'))
+    .find(s => s.textContent.trim() === day);
+  if (!target) return;
+  expandMonthOf(target);                           // apri il mese se collassato
+  target.scrollIntoView({ block: 'start', behavior: 'instant' });
+}
+
+// ── Chip ‹: torna alla chat generica ─────────────────────────────────────────
+// Funziona sia dopo openTagChat (chatOrigin impostato)
+// sia dopo openChat da home (chatOrigin null — sintetizza un ritorno generico)
+function restoreGenericFromTag() {
+  // Se arriviamo da home (openChat), sintetizza origin con il tag corrente pre-selezionato
+  const origin = chatOrigin || {
+    tag: null, isGeneric: true,
+    filter: chatContext.tag || '',   // pre-seleziona il chip del tag corrente
+    visibleDay: null
+  };
+  chatOrigin = null;
+
+  chatContext = { tag: null, isGeneric: true };
+  activeFilter = origin.filter || '';
+
+  // Ripristina header
+  const avatar  = document.getElementById('chat-avatar');
+  const titleEl = document.getElementById('chat-title');
+  const subEl   = document.getElementById('chat-sub');
+  titleEl.textContent     = 'Chat Generica';
+  avatar.textContent      = '💬';
+  avatar.style.background = '#2d3748';
+  subEl.textContent       = db.notes.length + ' note';
+
+  document.getElementById('chat-ctx-rename').style.display    = 'none';
+  document.getElementById('chat-ctx-delete-tag').style.display = 'none';
+
+  renderTagFilterChips();
+  renderChat();
+
+  // Dopo il paint: chip snap a sinistra (sempre) + ripristino giorno se salvato
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      // 1) Chip snap — identico a goBack() in v1.6.4
+      const bar = document.getElementById('tag-filter-bar');
+      const activeChip = bar ? bar.querySelector('.ts-chip.active') : null;
+      if (bar && activeChip) {
+        const chipOffset = activeChip.offsetLeft - bar.offsetLeft;
+        bar.scrollTo({ left: Math.max(0, chipOffset - 12), behavior: 'instant' });
+      }
+      // 2) Giorno visibile — espande il mese se collassato
+      if (origin.visibleDay) restoreVisibleDay(origin.visibleDay);
+    })
+  );
+}
+
+// ── Apre modal nuovo tag/subtag con titolo contestuale ───────────────────────
+function openNewTagOrSubtag() {
+  closeChatMenu();
+  const isSub   = !chatContext.isGeneric && chatContext.tag;
+  const titleEl = document.getElementById('new-tag-modal-title');
+  const labelEl = document.getElementById('new-tag-modal-label');
+  const inputEl = document.getElementById('new-tag-input');
+  const menuEl  = document.getElementById('chat-ctx-new');
+  if (titleEl) titleEl.textContent = isSub ? 'Nuovo subtag' : 'Nuovo tag';
+  if (labelEl) labelEl.textContent = isSub ? 'Nome subtag'  : 'Nome tag';
+  if (inputEl) inputEl.placeholder = isSub ? 'es. startup, app, progetto…' : 'es. Lavoro, Idee, Salute…';
+  if (menuEl)  menuEl.textContent  = isSub ? '🏷️ Aggiungi subtag' : '🏷️ Aggiungi tag';
+  openModal('modal-new-tag');
+}
+
+// ── Apre modal di modifica in modalità subtag ─────────────────────────────────
+function openEditSubtag(subtag) {
+  editingSubtagMode = true;
+  const tEl = document.getElementById('edit-tag-modal-title');
+  const lEl = document.getElementById('edit-tag-modal-label');
+  const dEl = document.getElementById('edit-tag-delete-btn');
+  const iEl = document.getElementById('edit-tag-input');
+  if (tEl) tEl.textContent  = 'Modifica subtag';
+  if (lEl) lEl.textContent  = 'Nome';
+  if (dEl) dEl.textContent  = 'Elimina subtag';
+  if (iEl) { iEl.value = subtag; iEl.dataset.subtag = subtag; }
+  openModal('modal-edit-tag');
+}
+
+// ── Elimina subtag direttamente dal menu ⋯ ────────────────────────────────────
+function deleteSubtagFromMenu(subtag) {
+  const tag = chatContext.tag;
+  if (!tag || !subtag) return;
+  if (!confirm(`Elimina subtag "${subtag}"? Le note rimarranno senza subtag.`)) return;
+  if (db.tagSubtags && db.tagSubtags[tag]) {
+    db.tagSubtags[tag] = db.tagSubtags[tag].filter(s => s !== subtag);
+  }
+  db.notes.forEach(n => { if (n.tag === tag && n.subtag === subtag) n.subtag = ''; });
+  saveData(db);
+  if (activeFilter === subtag) activeFilter = '';
+  updateSubCount();
+  renderSubtagFilterChips(getSubtagsForTag(tag));
+  renderChat();
+  showToast('Subtag eliminato');
+}
+
+// ── Modal di eliminazione tag con 3 opzioni ───────────────────────────────────
+function openDeleteTagModal(tag) {
+  if (!tag) return;
+  _deleteTagTarget = tag;
+  _reassignTarget  = null;
+  const count = db.notes.filter(n => n.tag === tag).length;
+  const titleEl = document.getElementById('delete-tag-modal-title');
+  const descEl  = document.getElementById('delete-tag-modal-desc');
+  const reassignPanel = document.getElementById('delete-tag-reassign');
+  const reassignBtn   = document.getElementById('delete-tag-btn-reassign');
+  if (titleEl) titleEl.textContent = `Elimina "${tag}"`;
+  if (descEl)  descEl.textContent  = count > 0
+    ? `Questo tag ha ${count} ${count === 1 ? 'nota' : 'note'}. Cosa vuoi fare con le note?`
+    : 'Questo tag non ha note associate. Vuoi eliminarlo?';
+  if (reassignPanel) reassignPanel.style.display = 'none';
+  const otherTags = db.tags.filter(t => t !== tag && t !== 'PROMEMORIA' && t !== 'CHECKLIST');
+  if (reassignBtn)  reassignBtn.style.display = otherTags.length > 0 ? '' : 'none';
+  openModal('modal-delete-tag');
+}
+
+function toggleReassignChips() {
+  const panel    = document.getElementById('delete-tag-reassign');
+  const chipsEl  = document.getElementById('delete-tag-reassign-chips');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  chipsEl.innerHTML = '';
+  const otherTags = db.tags.filter(t => t !== _deleteTagTarget && t !== 'PROMEMORIA' && t !== 'CHECKLIST');
+  otherTags.forEach(tag => {
+    const c = document.createElement('div');
+    c.className = 'tce-chip';
+    c.textContent = getTagEmoji(tag) + ' ' + tag;
+    c.onclick = () => {
+      _reassignTarget = tag;
+      executeDeleteTag('reassign');
+    };
+    chipsEl.appendChild(c);
+  });
+  panel.style.display = '';
+}
+
+function executeDeleteTag(action) {
+  const tag = _deleteTagTarget;
+  if (!tag) return;
+  if (action === 'eliminate') {
+    db.notes = db.notes.filter(n => n.tag !== tag);
+  } else if (action === 'keep') {
+    db.notes.forEach(n => { if (n.tag === tag) { n.tag = ''; n.subtag = ''; } });
+  } else if (action === 'reassign') {
+    if (!_reassignTarget) { showToast('Seleziona un tag'); return; }
+    db.notes.forEach(n => { if (n.tag === tag) n.tag = _reassignTarget; });
+  }
+  db.tags = db.tags.filter(t => t !== tag);
+  if (db.tagSubtags && db.tagSubtags[tag]) delete db.tagSubtags[tag];
+  saveData(db);
+  closeModal('modal-delete-tag');
+  _deleteTagTarget = null;
+  _reassignTarget  = null;
+  // Se ero dentro la chat di questo tag, torna alla generica
+  if (chatContext.tag === tag) {
+    chatOrigin = null;
+    openChat(null);
+  } else if (chatContext.isGeneric) {
+    renderTagFilterChips();
+    activeFilter = '';
+    renderChat();
+  }
+  renderHome();
+  renderSettingsTags();
+  showToast(`Tag "${tag}" eliminato`);
+}
+
+// ── Espande il mese che contiene un elemento (day-sep o bubble-row) ──────────
+function expandMonthOf(el) {
+  const content = el.closest('.month-content');
+  if (content && content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    const header = content.previousElementSibling;
+    if (header) header.classList.remove('collapsed');
+  }
+}
+
+// ── Scrolla e flasha un messaggio specifico ───────────────────────────────────
+function scrollToNote(noteId) {
+  const container = document.getElementById('messages-container');
+  if (!container) return;
+  const row = container.querySelector(`.bubble-row[data-id="${noteId}"]`);
+  if (!row) return;
+  expandMonthOf(row);                              // apri il mese se collassato
+  row.scrollIntoView({ block: 'center', behavior: 'instant' });
+  row.classList.add('note-flash');
+  setTimeout(() => row.classList.remove('note-flash'), 1100);
+}
+
+// ── Tap su tag chip in chat generica → entra nella tag chat a quel messaggio ─
+function openTagChatAtNote(tag, noteId) {
+  openTagChat(tag);
+  // renderChat() schedules one rAF (scroll-to-bottom).
+  // We need TWO extra rAFs after that to guarantee our scroll wins.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => scrollToNote(noteId))
+    )
+  );
+}
+
+// ── "Vedi contesto" in tag chat → mostra il messaggio nella chat generica ─────
+function openGenericAtNote(noteId) {
+  // Salva contesto corrente (tag chat) così chip ‹ può tornare
+  chatOrigin = {
+    tag: chatContext.tag,
+    isGeneric: chatContext.isGeneric,
+    filter: activeFilter,
+    visibleDay: saveVisibleDay()
+  };
+
+  chatContext = { tag: null, isGeneric: true };
+  activeFilter = '';
+
+  const avatar  = document.getElementById('chat-avatar');
+  const titleEl = document.getElementById('chat-title');
+  const subEl   = document.getElementById('chat-sub');
+  titleEl.textContent     = 'Chat Generica';
+  avatar.textContent      = '💬';
+  avatar.style.background = '#2d3748';
+  subEl.textContent       = db.notes.length + ' note';
+
+  document.getElementById('chat-ctx-rename').style.display    = 'none';
+  document.getElementById('chat-ctx-delete-tag').style.display = 'none';
+
+  renderTagFilterChips();
+  renderChat();
+
+  // Scrolla al messaggio dopo il paint (triplo rAF: supera il scroll-to-bottom di renderChat)
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => scrollToNote(noteId))
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════
 // CHAT MENU
 // ═══════════════════════════════════════════════
 
 function openChatMenu(e) {
-  const menu = document.getElementById('chat-ctx-menu');
+  const menu       = document.getElementById('chat-ctx-menu');
+  const newItem    = document.getElementById('chat-ctx-new');
+  const renameItem = document.getElementById('chat-ctx-rename');
+  const deleteItem = document.getElementById('chat-ctx-delete-tag');
+
+  const isTagChat = !chatContext.isGeneric && chatContext.tag;
+
+  // ── "Nuovo" item ──────────────────────────────────────────────────────────
+  if (newItem) newItem.textContent = isTagChat ? '🏷️ Aggiungi subtag' : '🏷️ Aggiungi tag';
+
+  // ── Rinomina / Elimina — contestuali ─────────────────────────────────────
+  if (isTagChat) {
+    // Show rename/delete only when a subtag chip is selected
+    if (activeFilter && activeFilter !== '') {
+      if (renameItem) {
+        renameItem.style.display = '';
+        renameItem.textContent   = '✏️ Rinomina subtag';
+        renameItem.onclick       = () => { closeChatMenu(); openEditSubtag(activeFilter); };
+      }
+      if (deleteItem) {
+        deleteItem.style.display = '';
+        deleteItem.textContent   = '🗑️ Elimina subtag';
+        deleteItem.onclick       = () => { closeChatMenu(); deleteSubtagFromMenu(activeFilter); };
+      }
+    } else {
+      if (renameItem) renameItem.style.display = 'none';
+      if (deleteItem) deleteItem.style.display = 'none';
+    }
+  } else {
+    // Show rename/delete only when a real tag chip is selected
+    if (activeFilter && activeFilter !== '' && activeFilter !== '__untagged__') {
+      editingTagName = activeFilter;
+      if (renameItem) {
+        renameItem.style.display = '';
+        renameItem.textContent   = '✏️ Rinomina tag';
+        renameItem.onclick       = () => { closeChatMenu(); openEditTag(activeFilter); };
+      }
+      if (deleteItem) {
+        deleteItem.style.display = '';
+        deleteItem.textContent   = '🗑️ Elimina tag';
+        deleteItem.onclick       = () => { closeChatMenu(); openDeleteTagModal(activeFilter); };
+      }
+    } else {
+      if (renameItem) renameItem.style.display = 'none';
+      if (deleteItem) deleteItem.style.display = 'none';
+    }
+  }
+
   menu.classList.add('open');
   menu.style.right = '12px';
-  menu.style.left = 'auto';
-  menu.style.top = (document.getElementById('chat-header').offsetHeight + 8) + 'px';
+  menu.style.left  = 'auto';
+  menu.style.top   = (document.getElementById('chat-header').offsetHeight + 8) + 'px';
   setTimeout(() => document.addEventListener('click', closeChatMenuOnce), 10);
 }
 
